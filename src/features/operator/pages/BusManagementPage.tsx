@@ -1,30 +1,93 @@
 import { useMemo, useState } from 'react'
-import { Search, Plus, MoreHorizontal } from 'lucide-react'
+import { Search, Plus } from 'lucide-react'
 
 import Card from '@/components/ui/Card'
+import Modal from '@/components/ui/Modal'
+import BusForm from '@/features/operator/components/BusForm'
+import BusActionsMenu from '@/features/operator/components/BusActionsMenu'
 import { mockBuses } from '@/data/mockBuses'
+import type { Bus } from '@/types/bus'
 
 function BusManagementPage() {
+  const [buses, setBuses] = useState<Bus[]>([...mockBuses])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
 
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingBus, setEditingBus] = useState<Bus | null>(null)
+
   const filteredBuses = useMemo(() => {
-    return mockBuses.filter((bus) => {
+    return buses.filter((bus) => {
+      const searchTerm = search.toLowerCase()
+
       const matchesSearch =
-        bus.busNumber.toLowerCase().includes(search.toLowerCase()) ||
-        bus.busName.toLowerCase().includes(search.toLowerCase()) ||
-        bus.route.toLowerCase().includes(search.toLowerCase())
+        bus.busNumber.toLowerCase().includes(searchTerm) ||
+        bus.busName.toLowerCase().includes(searchTerm) ||
+        bus.route.toLowerCase().includes(searchTerm)
 
       const matchesStatus =
         statusFilter === 'All' || bus.status === statusFilter
 
       return matchesSearch && matchesStatus
     })
-  }, [search, statusFilter])
+  }, [buses, search, statusFilter])
 
-  const activeBuses = mockBuses.filter(
+  const activeBuses = buses.filter(
     (bus) => bus.status === 'Active',
   ).length
+
+  const openAddModal = () => {
+    setEditingBus(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEditBus = (bus: Bus) => {
+    setEditingBus(bus)
+    setIsModalOpen(true)
+  }
+
+  const handleDeleteBus = (bus: Bus) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${bus.busNumber}?`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setBuses((currentBuses) =>
+      currentBuses.filter((currentBus) => currentBus.id !== bus.id),
+    )
+  }
+
+  const handleSaveBus = (data: Omit<Bus, 'id'>) => {
+    if (editingBus) {
+      setBuses((currentBuses) =>
+        currentBuses.map((bus) =>
+          bus.id === editingBus.id
+            ? {
+                ...editingBus,
+                ...data,
+              }
+            : bus,
+        ),
+      )
+    } else {
+      const newBus: Bus = {
+        id: `BUS-${String(buses.length + 1).padStart(3, '0')}`,
+        ...data,
+      }
+
+      setBuses((currentBuses) => [...currentBuses, newBus])
+    }
+
+    closeModal()
+  }
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setEditingBus(null)
+  }
 
   return (
     <div className="space-y-8">
@@ -46,6 +109,7 @@ function BusManagementPage() {
 
         <button
           type="button"
+          onClick={openAddModal}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1F2937]"
         >
           <Plus size={18} />
@@ -59,7 +123,7 @@ function BusManagementPage() {
           <p className="text-sm text-[#6B7280]">Total Buses</p>
 
           <p className="mt-2 text-3xl font-semibold text-[#111827]">
-            {mockBuses.length}
+            {buses.length}
           </p>
         </Card>
 
@@ -186,13 +250,12 @@ function BusManagementPage() {
                   </td>
 
                   <td className="px-5 py-5 text-right">
-                    <button
-                      type="button"
-                      className="rounded-lg p-2 text-[#6B7280] transition hover:bg-[#F7F3EA] hover:text-[#111827]"
-                      aria-label={`Actions for ${bus.busNumber}`}
-                    >
-                      <MoreHorizontal size={20} />
-                    </button>
+                    {/* Three-dot actions menu */}
+                    <BusActionsMenu
+                      bus={bus}
+                      onEdit={handleEditBus}
+                      onDelete={handleDeleteBus}
+                    />
                   </td>
                 </tr>
               ))}
@@ -200,6 +263,7 @@ function BusManagementPage() {
           </table>
         </div>
 
+        {/* Empty state */}
         {filteredBuses.length === 0 && (
           <div className="p-10 text-center">
             <p className="font-medium text-[#111827]">
@@ -212,6 +276,19 @@ function BusManagementPage() {
           </div>
         )}
       </Card>
+
+      {/* Add / Edit Modal */}
+      <Modal
+        open={isModalOpen}
+        onClose={closeModal}
+        title={editingBus ? 'Edit Bus' : 'Add Bus'}
+      >
+        <BusForm
+          initialData={editingBus ?? undefined}
+          onSubmit={handleSaveBus}
+          onCancel={closeModal}
+        />
+      </Modal>
     </div>
   )
 }
